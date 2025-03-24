@@ -7,6 +7,7 @@ curl -X POST http://localhost:8080/api/project/generate ^
      -d "{ \"group\": \"com.example\", \"artifact\": \"demo\", \"name\": \"demo\", \"description\": \"Demo project for Spring Boot\", \"packageName\": \"com.example.demo\", \"packaging\": \"jar\" }"
 
 
+
 Postman :
 
 curl --location 'http://localhost:8080/api/project/generate' \
