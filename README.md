@@ -1,6 +1,6 @@
 cmd : 
 
-curl -v -X POST http://localhost:8080/api/project/generate ^
+curl -X POST http://localhost:8080/api/project/generate ^
      -H "Content-Type: application/json" ^
      -H "Accept: application/zip" ^
      -o generated-project.zip ^
