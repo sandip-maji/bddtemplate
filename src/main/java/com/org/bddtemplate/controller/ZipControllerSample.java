@@ -1,19 +1,49 @@
-package com.org.bddtemplate.service;
+package com.org.bddtemplate.controller;
 
-import com.org.bddtemplate.dto.ProjectMetadata;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
-import org.springframework.stereotype.Service;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.io.*;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
+import java.nio.file.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-@Service
-public class ProjectGeneratorService {
+@RequestMapping("/api/project")
+@RestController
+public class ZipControllerSample {
+
+    @GetMapping("/generate-zip")
+    public ResponseEntity<InputStreamResource> generateZip(@RequestParam String folderName) throws IOException {
+        String sourcePath = "templates/" + folderName;
+        ClassPathResource resource = new ClassPathResource(sourcePath);
+
+        if (!resource.exists()) {
+            throw new FileNotFoundException("Folder not found: " + folderName);
+        }
+
+        // Copy files to a temporary directory
+        Path tempDir = Files.createTempDirectory("temp-folder");
+        copyResources(sourcePath, tempDir);
+
+        // Create the zip file
+        File zipFile = createZip(tempDir);
+
+        InputStreamResource resourceZip = new InputStreamResource(new FileInputStream(zipFile));
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + folderName + ".zip")
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .body(resourceZip);
+    }
 
     public void copyResources(String resourcePath, Path targetPath) throws IOException {
         PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
@@ -37,26 +67,11 @@ public class ProjectGeneratorService {
             Files.createDirectories(outputFile.getParent());
             try (InputStream inputStream = resource.getInputStream()) {
                 Files.copy(inputStream, outputFile, StandardCopyOption.REPLACE_EXISTING);
-            }catch (Exception e) {
-                throw new RuntimeException("Error while Files.copy(inputStream, outputFile, StandardCopyOption.REPLACE_EXISTING): ", e);
             }
         }
     }
 
-
-
-    public void modifyPomFile(Path pomPath, ProjectMetadata metadata) throws IOException {
-        String content = Files.readString(pomPath);
-        content = content.replace("${group}", metadata.getGroup())
-                .replace("${artifact}", metadata.getArtifact())
-                .replace("${name}", metadata.getName())
-                .replace("${description}", metadata.getDescription())
-                .replace("${packageName}", metadata.getPackageName())
-                .replace("${packaging}", metadata.getPackaging());
-        Files.writeString(pomPath, content);
-    }
-
-    public File createZip(Path sourceDirPath) throws IOException {
+    private File createZip(Path sourceDirPath) throws IOException {
         File zipFile = File.createTempFile("output", ".zip");
 
         try (ZipOutputStream zipOut = new ZipOutputStream(new FileOutputStream(zipFile))) {
@@ -72,8 +87,6 @@ public class ProjectGeneratorService {
                             throw new RuntimeException("Error while zipping file: " + path, e);
                         }
                     });
-        }catch (Exception e) {
-            throw new RuntimeException("Error while zipping file: ", e);
         }
         return zipFile;
     }

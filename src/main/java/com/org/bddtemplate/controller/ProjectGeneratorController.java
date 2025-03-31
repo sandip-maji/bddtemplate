@@ -3,37 +3,51 @@ package com.org.bddtemplate.controller;
 import com.org.bddtemplate.dto.ProjectMetadata;
 import com.org.bddtemplate.service.ProjectGeneratorService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
-import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
-@RestController
 @RequestMapping("/api/project")
+@RestController
 public class ProjectGeneratorController {
 
     @Autowired
-    private ProjectGeneratorService projectGeneratorService;
+    ProjectGeneratorService projectGeneratorService;
+
 
     @PostMapping("/generate")
-    public ResponseEntity<byte[]> generateProject(@RequestBody ProjectMetadata metadata) {
-        try {
-            ByteArrayOutputStream zipOutputStream = projectGeneratorService.generateProject(metadata);
-            HttpHeaders headers = new HttpHeaders();
-            headers.add(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + metadata.getArtifact() + ".zip");
-            headers.add(HttpHeaders.CONTENT_TYPE, "application/zip");
+    public ResponseEntity<InputStreamResource> generateZip(
+            @RequestParam String folderName,
+            @RequestBody ProjectMetadata metadata) throws IOException {
 
-            return ResponseEntity.ok()
-                    .headers(headers)
-                    .body(zipOutputStream.toByteArray());
-        } catch (Exception e) {
-            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+        String sourcePath = "templates/" + folderName;
+        Path tempDir = Files.createTempDirectory("temp-folder");
+        projectGeneratorService.copyResources(sourcePath, tempDir);
+
+        // Modify pom.xml
+        Path pomPath = tempDir.resolve(folderName+"/pom.xml");
+        System.out.println("Looking for pom.xml at: " + pomPath.toAbsolutePath());
+        if (Files.exists(pomPath)) {
+            projectGeneratorService.modifyPomFile(pomPath, metadata);
         }
+
+        // Create zip
+        File zipFile = projectGeneratorService.createZip(tempDir);
+
+        InputStreamResource resourceZip = new InputStreamResource(new FileInputStream(zipFile));
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + folderName + ".zip")
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .body(resourceZip);
     }
 
 
